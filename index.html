@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>건강한 밥상 수호대 - 식습관 교육형 두더지 게임</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Custom CSS Animations & Theme Configuration -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+    body {
+      font-family: 'Jua', 'Noto Sans KR', sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Hole and Food Popup Animations */
+    .hole-mask {
+      overflow: hidden;
+      position: relative;
+    }
+
+    .mole-item {
+      transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.1s ease;
+      transform: translateY(110%);
+      will-change: transform;
+    }
+
+    .mole-item.up {
+      transform: translateY(0%);
+    }
+
+    .mole-item.hit {
+      animation: hitShake 0.25s ease-in-out forwards;
+    }
+
+    @keyframes hitShake {
+      0% { transform: scale(1) rotate(0deg); }
+      25% { transform: scale(1.2) rotate(-12deg); }
+      50% { transform: scale(0.9) rotate(12deg); }
+      75% { transform: scale(1.1) rotate(-6deg); }
+      100% { transform: scale(0) rotate(0deg); opacity: 0; }
+    }
+
+    /* Floating Score Floating Animation */
+    .float-text {
+      position: absolute;
+      animation: floatUp 0.8s ease-out forwards;
+      pointer-events: none;
+      font-weight: 900;
+      text-shadow: 2px 2px 0px rgba(0,0,0,0.4);
+      z-index: 50;
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0) scale(0.8); }
+      50% { opacity: 1; transform: translateY(-25px) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-50px) scale(1); }
+    }
+
+    /* Custom Custom Hammer Cursor Effect */
+    .hammer-cursor {
+      cursor: crosshair;
+    }
+
+    /* Grass Hole 3D Depth Styling */
+    .dirt-hole {
+      background: linear-gradient(180deg, #3d2314 0%, #24140a 100%);
+      box-shadow: inset 0 10px 15px rgba(0,0,0,0.8), 0 4px 6px rgba(0,0,0,0.3);
+      border: 4px solid #5a3825;
+    }
+
+    .grass-rim {
+      background: linear-gradient(180deg, #4ade80 0%, #16a34a 100%);
+      box-shadow: 0 4px 0 #15803d;
+    }
+
+    /* Pulse effect for danger state */
+    .danger-pulse {
+      animation: redPulse 1s infinite alternate;
+    }
+
+    @keyframes redPulse {
+      from { box-shadow: inset 0 0 0px rgba(239, 68, 68, 0); }
+      to { box-shadow: inset 0 0 30px rgba(239, 68, 68, 0.6); }
+    }
+  </style>
+</head>
+
+<body class="bg-amber-50 text-slate-800 min-h-screen flex flex-col items-center justify-between p-2 sm:p-4 overflow-x-hidden hammer-cursor">
+
+  <!-- Top Navigation / Header -->
+  <header class="w-full max-w-xl flex items-center justify-between bg-white/80 backdrop-blur border-2 border-amber-200 rounded-2xl px-4 py-2 my-1 shadow-md">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl sm:text-3xl">🥗</span>
+      <h1 class="text-lg sm:text-2xl font-bold bg-gradient-to-r from-emerald-600 to-green-500 bg-clip-text text-transparent">
+        건강한 밥상 수호대
+      </h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btn-sound" class="p-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-lg transition active:scale-95" title="소리 토글">
+        🔊
+      </button>
+      <button id="btn-pause" class="p-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-lg transition active:scale-95 hidden" title="일시정지">
+        ⏸️
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Display Card -->
+  <main class="w-full max-w-xl bg-emerald-700/10 border-4 border-emerald-600/30 rounded-3xl p-3 sm:p-5 shadow-2xl relative flex flex-col justify-between flex-grow my-2">
+
+    <!-- HUD Dashboard -->
+    <div id="hud" class="grid grid-cols-3 gap-2 bg-emerald-900 text-white p-3 rounded-2xl shadow-lg border-2 border-emerald-500 mb-3 text-center">
+      <!-- Score -->
+      <div class="flex flex-col items-center justify-center">
+        <span class="text-xs text-emerald-300 font-bold tracking-wider">점수</span>
+        <span id="score-text" class="text-xl sm:text-3xl font-extrabold text-yellow-300">0</span>
+      </div>
+      <!-- Timer -->
+      <div class="flex flex-col items-center justify-center border-x border-emerald-700 px-1">
+        <span class="text-xs text-emerald-300 font-bold tracking-wider">남은 시간</span>
+        <div class="flex items-center gap-1">
+          <span class="text-base sm:text-xl">⏳</span>
+          <span id="timer-text" class="text-xl sm:text-3xl font-extrabold text-white">90s</span>
+        </div>
+      </div>
+      <!-- Life -->
+      <div class="flex flex-col items-center justify-center">
+        <span class="text-xs text-emerald-300 font-bold tracking-wider">체력</span>
+        <div id="life-container" class="flex gap-0.5 sm:gap-1 text-base sm:text-2xl mt-1">
+          <span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span><span>❤️</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Whack-a-Mole 3x3 Grid -->
+    <div id="game-grid" class="grid grid-cols-3 gap-3 sm:gap-4 my-auto relative p-2 bg-emerald-800/20 rounded-2xl border border-emerald-600/20">
+      <!-- 9 Holes Generated Dynamically via JS or Hardcoded for clean structure -->
+      <!-- Hole 0 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-0" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🍟</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">감자튀김</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 1 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-1" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🥦</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">브로콜리</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 2 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-2" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🍔</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">햄버거</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 3 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-3" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🥕</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">당근</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 4 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-4" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🥤</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">탄산음료</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 5 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-5" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🍎</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">사과</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 6 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-6" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🍩</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">도넛</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 7 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-7" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🍅</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">토마토</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+
+      <!-- Hole 8 -->
+      <div class="hole-container flex flex-col items-center">
+        <div class="w-full aspect-square dirt-hole rounded-full relative hole-mask flex items-end justify-center">
+          <div id="mole-8" class="mole-item absolute bottom-0 w-full h-full flex flex-col items-center justify-center text-4xl sm:text-6xl cursor-pointer">
+            <span class="mole-emoji">🍜</span>
+            <span class="mole-label text-[10px] sm:text-xs bg-black/70 text-white px-1.5 py-0.5 rounded-full mt-1 -mb-2 font-sans font-bold">라면</span>
+          </div>
+        </div>
+        <div class="w-full h-3 sm:h-4 grass-rim rounded-full -mt-2 z-10"></div>
+      </div>
+    </div>
+
+    <!-- Combo & Feedback Banner -->
+    <div class="h-8 flex items-center justify-center mt-2">
+      <div id="combo-banner" class="hidden text-center text-amber-600 font-extrabold text-lg sm:text-xl animate-bounce">
+        🔥 <span id="combo-count">2</span>연속 정크푸드 퇴치!
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Navigation / Instructions Quick Link -->
+  <footer class="w-full max-w-xl flex justify-between items-center text-xs sm:text-sm text-slate-500 px-2 py-1">
+    <span>🏆 최고 기록: <strong id="high-score-text" class="text-amber-700">0점</strong></span>
+    <button id="btn-guide-open" class="text-emerald-700 font-bold underline hover:text-emerald-800">
+      🎮 게임 방법 보기
+    </button>
+  </footer>
+
+  <!-- MODAL 1: START SCREEN -->
+  <div id="modal-start" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center border-4 border-emerald-500 shadow-2xl relative animate-scaleUp">
+      <div class="text-6xl mb-3">🥗🔨</div>
+      <h2 class="text-3xl font-extrabold text-emerald-800 mb-2">건강한 밥상 수호대</h2>
+      <p class="text-slate-600 text-sm mb-6 leading-relaxed">
+        몸에 나쁜 <strong class="text-red-500">정크푸드</strong>는 딱 때려잡고,<br/>
+        몸에 좋은 <strong class="text-emerald-600">건강 식품</strong>은 지켜주세요!
+      </p>
+
+      <div class="bg-amber-50 rounded-2xl p-4 border border-amber-200 mb-6 text-left text-xs sm:text-sm space-y-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">💥</span>
+          <span><strong>정크푸드 클릭:</strong> +100점 (퇴치)</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">⚠️</span>
+          <span><strong>정크푸드 방치:</strong> -1 체력 (영양 손실)</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🥦</span>
+          <span><strong>건강식품 클릭 금지:</strong> 잘못 누르면 -150점 & 체력 -1</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">✨</span>
+          <span><strong>보너스 아이템:</strong> 물/비타민 터치 시 체력 회복 또는 +200점</span>
+        </div>
+      </div>
+
+      <button id="btn-start-game" class="w-full py-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-extrabold text-xl rounded-2xl shadow-lg transform active:scale-95 transition">
+        🚀 게임 시작하기
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL 2: GAME OVER / RESULT SCREEN -->
+  <div id="modal-result" class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 text-center border-4 border-amber-400 shadow-2xl relative">
+      <div id="result-icon" class="text-6xl mb-2">🏆</div>
+      <h2 id="result-title" class="text-3xl font-extrabold text-slate-800 mb-1">게임 종료!</h2>
+      <p id="result-subtitle" class="text-sm text-emerald-600 font-bold mb-4">멋진 식습관 수호자네요!</p>
+
+      <!-- Score Breakdown Box -->
+      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 mb-4 space-y-2 text-sm text-left">
+        <div class="flex justify-between items-center border-b pb-2">
+          <span class="text-slate-600">최종 점수</span>
+          <span id="res-score" class="text-2xl font-black text-amber-600">0점</span>
+        </div>
+        <div class="flex justify-between items-center text-xs sm:text-sm">
+          <span>🍔 퇴치한 정크푸드</span>
+          <span id="res-bad-hit" class="font-bold text-red-500">0개</span>
+        </div>
+        <div class="flex justify-between items-center text-xs sm:text-sm">
+          <span>🥦 지켜낸 건강식품</span>
+          <span id="res-good-saved" class="font-bold text-emerald-600">0개</span>
+        </div>
+        <div class="flex justify-between items-center text-xs sm:text-sm">
+          <span>❌ 실수로 때린 건강식품</span>
+          <span id="res-good-hit" class="font-bold text-gray-500">0개</span>
+        </div>
+      </div>
+
+      <!-- Nutrition Feedback Card -->
+      <div id="feedback-card" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 mb-5 text-xs text-emerald-900 font-bold leading-relaxed">
+        💡 "채소와 과일은 몸의 면역력을 높여주고 성장을 도와줍니다!"
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="grid grid-cols-2 gap-3">
+        <button id="btn-restart" class="py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow active:scale-95 transition">
+          🔄 다시 하기
+        </button>
+        <button id="btn-home" class="py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl active:scale-95 transition">
+          🏠 메인으로
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: IN-GAME GUIDE MODAL -->
+  <div id="modal-guide" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 text-slate-800 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button id="btn-guide-close" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-bold">✕</button>
+      <h3 class="text-xl font-extrabold text-emerald-800 mb-3 border-b pb-2">📖 도감 및 규칙 설명</h3>
+      
+      <div class="space-y-4 text-xs sm:text-sm">
+        <div>
+          <h4 class="font-bold text-red-600 mb-1">🎯 때려잡아야 할 나쁜 식품 (정크푸드)</h4>
+          <p class="text-gray-600 mb-2">화면에 나타나면 재빨리 클릭하세요! 놓치면 체력이 감소합니다.</p>
+          <div class="grid grid-cols-2 gap-1.5 text-xs">
+            <div class="bg-red-50 p-2 rounded-lg border border-red-100 flex items-center gap-2">🍔 <span>햄버거</span></div>
+            <div class="bg-red-50 p-2 rounded-lg border border-red-100 flex items-center gap-2">🍟 <span>감자튀김</span></div>
+            <div class="bg-red-50 p-2 rounded-lg border border-red-100 flex items-center gap-2">🥤 <span>탄산음료</span></div>
+            <div class="bg-red-50 p-2 rounded-lg border border-red-100 flex items-center gap-2">🍩 <span>도넛</span></div>
+            <div class="bg-red-50 p-2 rounded-lg border border-red-100 flex items-center gap-2">🍜 <span>라면</span></div>
+            <div class="bg-red-50 p-2 rounded-lg border border-red-100 flex items-center gap-2">🍕 <span>피자</span></div>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-emerald-600 mb-1">🛡️ 지켜줘야 할 건강 식품 (채소/과일)</h4>
+          <p class="text-gray-600 mb-2">절대 누르지 마세요! 그냥 통과시키면 섭취 성공 점수를 얻습니다.</p>
+          <div class="grid grid-cols-2 gap-1.5 text-xs">
+            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 flex items-center gap-2">🥦 <span>브로콜리</span></div>
+            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 flex items-center gap-2">🥕 <span>당근</span></div>
+            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 flex items-center gap-2">🍎 <span>사과</span></div>
+            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 flex items-center gap-2">🍅 <span>토마토</span></div>
+            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 flex items-center gap-2">🍌 <span>바나나</span></div>
+            <div class="bg-emerald-50 p-2 rounded-lg border border-emerald-100 flex items-center gap-2">🥬 <span>양배추</span></div>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="font-bold text-amber-600 mb-1">🎁 보너스 아이템</h4>
+          <div class="grid grid-cols-2 gap-1.5 text-xs">
+            <div class="bg-amber-50 p-2 rounded-lg border border-amber-100 flex items-center gap-2">💧 <span>물 (체력+1)</span></div>
+            <div class="bg-amber-50 p-2 rounded-lg border border-amber-100 flex items-center gap-2">💊 <span>비타민 (+200점)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <button id="btn-guide-confirm" class="w-full mt-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl">
+        확인
+      </button>
+    </div>
+  </div>
+
+  <script>
+    /* Web Audio API Sound Effects Generator (No external MP3 files required) */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playHitBad() {
+        if (this.muted || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+      }
+
+      playHitGood() {
+        if (this.muted || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.setValueAtTime(100, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.2);
+      }
+
+      playBonus() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+        osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.3);
+      }
+
+      playGameOver() {
+        if (this.muted || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.5);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.5);
+      }
+    }
+
+    const audio = new SoundEngine();
+
+    /* Master Data Table for Food & Bonus Items */
+    const FOOD_DATABASE = {
+      BAD: [
+        { name: '햄버거', emoji: '🍔', points: 100 },
+        { name: '감자튀김', emoji: '🍟', points: 100 },
+        { name: '탄산음료', emoji: '🥤', points: 100 },
+        { name: '도넛', emoji: '🍩', points: 100 },
+        { name: '라면', emoji: '🍜', points: 100 },
+        { name: '피자', emoji: '🍕', points: 100 }
+      ],
+      GOOD: [
+        { name: '브로콜리', emoji: '🥦', savePoints: 50, penaltyPoints: 150 },
+        { name: '당근', emoji: '🥕', savePoints: 50, penaltyPoints: 150 },
+        { name: '사과', emoji: '🍎', savePoints: 50, penaltyPoints: 150 },
+        { name: '토마토', emoji: '🍅', savePoints: 50, penaltyPoints: 150 },
+        { name: '바나나', emoji: '🍌', savePoints: 50, penaltyPoints: 150 },
+        { name: '양배추', emoji: '🥬', savePoints: 50, penaltyPoints: 150 }
+      ],
+      BONUS: [
+        { name: '물', emoji: '💧', type: 'HEAL', points: 0 },
+        { name: '비타민', emoji: '💊', type: 'SCORE', points: 200 }
+      ]
+    };
+
+    /* Educational Feedback Messages */
+    const NUTRITION_TIPS = [
+      "채소와 과일에는 비타민과 식이섬유가 풍부하여 몸을 건강하게 해줍니다!",
+      "가공식품을 너무 많이 먹으면 당분과 나트륨 축적으로 피로감을 줄 수 있어요.",
+      "물을 자주 마시면 혈액순환과 피부 건강에 아주 좋습니다!",
+      "패스트푸드 대신 신선한 제철 과일로 간식을 대신해 보세요.",
+      "브로콜리와 당근은 눈 건강과 면역력 증진에 도움을 줍니다."
+    ];
+
+    /* Game State Management Engine */
+    const GAME_CONFIG = {
+      MAX_TIME: 90, // Configured default play time: 90s
+      MAX_LIFE: 5,
+      GRID_SIZE: 9
+    };
+
+    let gameState = {
+      isPlaying: false,
+      isPaused: false,
+      score: 0,
+      timeLeft: GAME_CONFIG.MAX_TIME,
+      life: GAME_CONFIG.MAX_LIFE,
+      combo: 0,
+      highScore: 0,
+      stats: {
+        badHit: 0,
+        goodSaved: 0,
+        goodHit: 0
+      }
+    };
+
+    // Hole State Arrays (tracks current item in each of the 9 holes)
+    let holesState = Array(GAME_CONFIG.GRID_SIZE).fill(null);
+    let timerId = null;
+    let spawnTimeoutIds = [];
+
+    /* DOM Elements */
+    const elScoreText = document.getElementById('score-text');
+    const elTimerText = document.getElementById('timer-text');
+    const elLifeContainer = document.getElementById('life-container');
+    const elHighScoreText = document.getElementById('high-score-text');
+    const elComboBanner = document.getElementById('combo-banner');
+    const elComboCount = document.getElementById('combo-count');
+
+    /* Modals & Buttons */
+    const modalStart = document.getElementById('modal-start');
+    const modalResult = document.getElementById('modal-result');
+    const modalGuide = document.getElementById('modal-guide');
+    
+    const btnStart = document.getElementById('btn-start-game');
+    const btnRestart = document.getElementById('btn-restart');
+    const btnHome = document.getElementById('btn-home');
+    const btnSound = document.getElementById('btn-sound');
+    const btnPause = document.getElementById('btn-pause');
+    const btnGuideOpen = document.getElementById('btn-guide-open');
+    const btnGuideClose = document.getElementById('btn-guide-close');
+    const btnGuideConfirm = document.getElementById('btn-guide-confirm');
+
+    /* Initialize Local Storage for High Score */
+    function loadHighScore() {
+      try {
+        const saved = localStorage.getItem('health_mole_highscore');
+        if (saved !== null) {
+          gameState.highScore = parseInt(saved, 10) || 0;
+        }
+      } catch (e) {
+        // Fallback gracefully if LocalStorage access is blocked
+        gameState.highScore = 0;
+      }
+      elHighScoreText.textContent = `${gameState.highScore}점`;
+    }
+
+    function saveHighScore() {
+      if (gameState.score > gameState.highScore) {
+        gameState.highScore = gameState.score;
+        elHighScoreText.textContent = `${gameState.highScore}점`;
+        try {
+          localStorage.setItem('health_mole_highscore', gameState.highScore.toString());
+        } catch (e) {
+          // Ignore write failure
+        }
+      }
+    }
+
+    /* Main Game Timer Loop */
+    function startGame() {
+      audio.init();
+      
+      // Reset State
+      gameState.isPlaying = true;
+      gameState.isPaused = false;
+      gameState.score = 0;
+      gameState.timeLeft = GAME_CONFIG.MAX_TIME;
+      gameState.life = GAME_CONFIG.MAX_LIFE;
+      gameState.combo = 0;
+      gameState.stats = { badHit: 0, goodSaved: 0, goodHit: 0 };
+      
+      // Clear Active Items in Holes
+      for (let i = 0; i < GAME_CONFIG.GRID_SIZE; i++) {
+        clearHole(i);
+      }
+
+      updateHUD();
+      modalStart.classList.add('hidden');
+      modalResult.classList.add('hidden');
+      btnPause.classList.remove('hidden');
+
+      // Start Main Clock
+      clearInterval(timerId);
+      timerId = setInterval(() => {
+        if (!gameState.isPaused && gameState.isPlaying) {
+          gameState.timeLeft--;
+          updateHUD();
+
+          if (gameState.timeLeft <= 0) {
+            endGame(true);
+          }
+        }
+      }, 1000);
+
+      // Start Spawning Loop
+      scheduleNextSpawn();
+    }
+
+    /* Dynamic Spawning Logic Based on Remaining Time (Difficulty Curve) */
+    function scheduleNextSpawn() {
+      if (!gameState.isPlaying || gameState.isPaused) return;
+
+      // Determine Delay based on time progress
+      const progress = (GAME_CONFIG.MAX_TIME - gameState.timeLeft) / GAME_CONFIG.MAX_TIME; // 0.0 to 1.0
+      const minDelay = Math.max(400, 1000 - progress * 600); // 1000ms down to 400ms
+      const maxDelay = Math.max(700, 1500 - progress * 800); // 1500ms down to 700ms
+      const nextInterval = Math.random() * (maxDelay - minDelay) + minDelay;
+
+      const timeoutId = setTimeout(() => {
+        spawnFoodItem();
+        scheduleNextSpawn();
+      }, nextInterval);
+
+      spawnTimeoutIds.push(timeoutId);
+    }
+
+    /* Spawn Food Item into an Available Empty Hole */
+    function spawnFoodItem() {
+      if (!gameState.isPlaying || gameState.isPaused) return;
+
+      // Find empty holes
+      const emptyHoles = [];
+      for (let i = 0; i < GAME_CONFIG.GRID_SIZE; i++) {
+        if (holesState[i] === null) emptyHoles.push(i);
+      }
+
+      if (emptyHoles.length === 0) return;
+
+      // Pick Random Empty Hole
+      const holeIdx = emptyHoles[Math.floor(Math.random() * emptyHoles.length)];
+
+      // Pick Item Category (Bad, Good, or Bonus)
+      // Late game spawns more items and mixed foods
+      const randVal = Math.random();
+      let category = 'BAD';
+      if (randVal < 0.45) {
+        category = 'GOOD';
+      } else if (randVal > 0.90) {
+        category = 'BONUS';
+      }
+
+      const categoryItems = FOOD_DATABASE[category];
+      const selectedItem = { ...categoryItems[Math.floor(Math.random() * categoryItems.length)], category };
+
+      // Set State & Render
+      holesState[holeIdx] = selectedItem;
+      const elMole = document.getElementById(`mole-${holeIdx}`);
+      elMole.querySelector('.mole-emoji').textContent = selectedItem.emoji;
+      elMole.querySelector('.mole-label').textContent = selectedItem.name;
+      elMole.classList.remove('hit');
+      elMole.classList.add('up');
+
+      // Calculate Popup Stay Duration (0.8s to 1.6s)
+      const progress = (GAME_CONFIG.MAX_TIME - gameState.timeLeft) / GAME_CONFIG.MAX_TIME;
+      const stayDuration = Math.max(700, 1600 - progress * 800);
+
+      // Auto hide timer if user doesn't hit
+      const hideTimeout = setTimeout(() => {
+        if (holesState[holeIdx] === selectedItem && gameState.isPlaying) {
+          // Player let item submerge naturally
+          if (selectedItem.category === 'BAD') {
+            // Missed bad food -> Loss of health
+            gameState.life = Math.max(0, gameState.life - 1);
+            gameState.combo = 0;
+            updateHUD();
+            showFloatingText(holeIdx, "-1 ❤️", "text-red-500");
+            if (gameState.life <= 0) {
+              endGame(false);
+            }
+          } else if (selectedItem.category === 'GOOD') {
+            // Successfully passed good food -> Reward!
+            gameState.score += selectedItem.savePoints;
+            gameState.stats.goodSaved++;
+            updateHUD();
+            showFloatingText(holeIdx, `+${selectedItem.savePoints}`, "text-emerald-400");
+          }
+          clearHole(holeIdx);
+        }
+      }, stayDuration);
+
+      selectedItem.timeoutId = hideTimeout;
+    }
+
+    function clearHole(holeIdx) {
+      const elMole = document.getElementById(`mole-${holeIdx}`);
+      if (elMole) {
+        elMole.classList.remove('up');
+      }
+      if (holesState[holeIdx] && holesState[holeIdx].timeoutId) {
+        clearTimeout(holesState[holeIdx].timeoutId);
+      }
+      holesState[holeIdx] = null;
+    }
+
+    /* Handle Hole/Mole Click or Touch */
+    function handleMoleClick(holeIdx, e) {
+      if (!gameState.isPlaying || gameState.isPaused) return;
+
+      const item = holesState[holeIdx];
+      if (!item) return; // Empty hole
+
+      const elMole = document.getElementById(`mole-${holeIdx}`);
+      elMole.classList.add('hit');
+
+      // Clear timer so auto-hide logic doesn't trigger twice
+      if (item.timeoutId) clearTimeout(item.timeoutId);
+
+      if (item.category === 'BAD') {
+        // HIT BAD FOOD (TARGET SUCCESS)
+        audio.playHitBad();
+        gameState.combo++;
+        const comboBonus = Math.min(gameState.combo * 10, 100);
+        const earnedPoints = item.points + comboBonus;
+        gameState.score += earnedPoints;
+        gameState.stats.badHit++;
+        
+        showFloatingText(holeIdx, `+${earnedPoints}`, "text-yellow-300");
+        if (gameState.combo >= 3) {
+          elComboCount.textContent = gameState.combo;
+          elComboBanner.classList.remove('hidden');
+        }
+
+      } else if (item.category === 'GOOD') {
+        // HIT GOOD FOOD (MISTAKE)
+        audio.playHitGood();
+        gameState.combo = 0;
+        elComboBanner.classList.add('hidden');
+        gameState.score = Math.max(0, gameState.score - item.penaltyPoints);
+        gameState.life = Math.max(0, gameState.life - 1);
+        gameState.stats.goodHit++;
+
+        showFloatingText(holeIdx, `-${item.penaltyPoints}`, "text-red-500");
+        if (gameState.life <= 0) {
+          endGame(false);
+        }
+
+      } else if (item.category === 'BONUS') {
+        // HIT BONUS ITEM
+        audio.playBonus();
+        if (item.type === 'HEAL') {
+          gameState.life = Math.min(GAME_CONFIG.MAX_LIFE, gameState.life + 1);
+          showFloatingText(holeIdx, "+1 ❤️", "text-pink-400");
+        } else {
+          gameState.score += item.points;
+          showFloatingText(holeIdx, `+${item.points}`, "text-amber-300");
+        }
+      }
+
+      updateHUD();
+
+      // Instantly reset hole state
+      setTimeout(() => {
+        clearHole(holeIdx);
+      }, 200);
+    }
+
+    /* Floating Score Animation Indicator */
+    function showFloatingText(holeIdx, text, colorClass) {
+      const elMole = document.getElementById(`mole-${holeIdx}`);
+      if (!elMole) return;
+
+      const floatEl = document.createElement('div');
+      floatEl.className = `float-text ${colorClass} text-xl sm:text-2xl`;
+      floatEl.textContent = text;
+      
+      elMole.parentElement.appendChild(floatEl);
+
+      setTimeout(() => {
+        if (floatEl.parentElement) {
+          floatEl.parentElement.removeChild(floatEl);
+        }
+      }, 800);
+    }
+
+    /* Update UI HUD */
+    function updateHUD() {
+      elScoreText.textContent = gameState.score;
+      elTimerText.textContent = `${gameState.timeLeft}s`;
+
+      // Update Heart Display
+      let heartsHTML = '';
+      for (let i = 0; i < GAME_CONFIG.MAX_LIFE; i++) {
+        if (i < gameState.life) {
+          heartsHTML += '❤️';
+        } else {
+          heartsHTML += '🖤';
+        }
+      }
+      elLifeContainer.innerHTML = heartsHTML;
+
+      if (gameState.combo < 3) {
+        elComboBanner.classList.add('hidden');
+      }
+    }
+
+    /* Game Over & Result Screen */
+    function endGame(isTimeUp) {
+      gameState.isPlaying = false;
+      clearInterval(timerId);
+      spawnTimeoutIds.forEach(id => clearTimeout(id));
+      spawnTimeoutIds = [];
+
+      audio.playGameOver();
+      saveHighScore();
+
+      // Populate Result Modal Data
+      document.getElementById('res-score').textContent = `${gameState.score}점`;
+      document.getElementById('res-bad-hit').textContent = `${gameState.stats.badHit}개`;
+      document.getElementById('res-good-saved').textContent = `${gameState.stats.goodSaved}개`;
+      document.getElementById('res-good-hit').textContent = `${gameState.stats.goodHit}개`;
+
+      const elTitle = document.getElementById('result-title');
+      const elSub = document.getElementById('result-subtitle');
+      const elIcon = document.getElementById('result-icon');
+
+      if (isTimeUp && gameState.score > 1000) {
+        elTitle.textContent = "식습관 수호 성공!";
+        elSub.textContent = "정크푸드를 완전히 물리쳤습니다!";
+        elIcon.textContent = "🌟";
+      } else if (!isTimeUp) {
+        elTitle.textContent = "체력 소진!";
+        elSub.textContent = "정크푸드의 유혹에 눌렸어요. 다시 도전해보세요!";
+        elIcon.textContent = "💔";
+      } else {
+        elTitle.textContent = "게임 종료!";
+        elSub.textContent = "조금만 더 힘내서 건강 식품을 보호해봅시다!";
+        elIcon.textContent = "🥦";
+      }
+
+      // Random Nutritional Tip Feedback
+      const randomTip = NUTRITION_TIPS[Math.floor(Math.random() * NUTRITION_TIPS.length)];
+      document.getElementById('feedback-card').textContent = `💡 ${randomTip}`;
+
+      btnPause.classList.add('hidden');
+      modalResult.classList.remove('hidden');
+    }
+
+    /* Register Event Listeners */
+    document.addEventListener('DOMContentLoaded', () => {
+      loadHighScore();
+
+      // Grid Holes Click Listeners
+      for (let i = 0; i < GAME_CONFIG.GRID_SIZE; i++) {
+        const moleEl = document.getElementById(`mole-${i}`);
+        moleEl.addEventListener('pointerdown', (e) => {
+          e.preventDefault(); // Prevent double tap zoom on mobile
+          handleMoleClick(i, e);
+        });
+      }
+
+      // Control Buttons
+      btnStart.addEventListener('click', () => startGame());
+      btnRestart.addEventListener('click', () => startGame());
+      btnHome.addEventListener('click', () => {
+        modalResult.classList.add('hidden');
+        modalStart.classList.remove('hidden');
+      });
+
+      // Sound Toggle Button
+      btnSound.addEventListener('click', () => {
+        audio.muted = !audio.muted;
+        btnSound.textContent = audio.muted ? '🔇' : '🔊';
+      });
+
+      // Pause Toggle Button
+      btnPause.addEventListener('click', () => {
+        if (!gameState.isPlaying) return;
+        gameState.isPaused = !gameState.isPaused;
+        btnPause.textContent = gameState.isPaused ? '▶️' : '⏸️';
+      });
+
+      // Guide Modal Listeners
+      btnGuideOpen.addEventListener('click', () => modalGuide.classList.remove('hidden'));
+      btnGuideClose.addEventListener('click', () => modalGuide.classList.add('hidden'));
+      btnGuideConfirm.addEventListener('click', () => modalGuide.classList.add('hidden'));
+    });
+  </script>
+</body>
+</html>
